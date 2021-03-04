@@ -1,0 +1,101 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+
+class AuthController extends Controller
+{
+    //
+    public function login(Request $request){
+        $this->validate($request, [
+            'email' => 'required',
+            'password' => 'required'
+        ]);
+        $user = User::where('email', '=', $request->email)->first();
+        $status = 'Error';
+        $message = '';
+        $data = null;
+        $code = 401;
+        if ($user) {
+            if (Hash::check($request->password, $user->password)) {
+                //generate token
+                $user->generateToken();
+                $status = 'success';
+                $message = 'Login Success';
+                $data = $user->toArray();
+                $code = 200;
+            }else{
+                $message = 'Login gagal, password salah';
+            }
+        } else {
+            $message = 'Login gagal, username salah';
+        }
+
+        return response()->json([
+            'status' => $status,
+            'message' => $message,
+            'data' => $data,
+        ], $code);
+    }
+
+
+    public function register(Request $request){
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6'
+        ]);
+        $status = 'error';
+        $message = '';
+        $data = null;
+        $code = 401;
+        if ($validator->fails()) {
+            $error = $validator->errors();
+            $message = $error;
+        } else {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'roles' => json_encode(['CUSTOMER']),
+            ]);
+            if ($user) {
+                $user->generateToken();
+                $status = 'success';
+                $message = 'Register berhasil';
+                $data = $user->toArray();
+                $code = 200;
+            } else {
+                $message = 'Register Gagal';
+            }
+
+        }
+
+        return response()->json([
+            'status' => $status,
+            'message' => $message,
+            'data' => $data,
+        ], $code);
+
+    }
+
+    public function logout(Request $request){
+        $user = Auth::user();
+        if ($user) {
+            $user->api_token = null;
+            $user->save();
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Logout berhasil',
+            'data' => null,
+        ], 200);
+
+    }
+}
